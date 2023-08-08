@@ -92,7 +92,7 @@ NUITKA_MAY_BE_UNUSED static PyObject *CALL_FUNCTION(PyObject *function_object, P
 }
 
 // Function call variant with no arguments provided at all.
-extern PyObject *CALL_FUNCTION_NO_ARGS(PyObject *called);
+extern PyObject *CALL_FUNCTION_NO_ARGS(PyThreadState *tstate, PyObject *called);
 
 // Function call variants with positional arguments tuple.
 NUITKA_MAY_BE_UNUSED static PyObject *CALL_FUNCTION_WITH_POSARGS(PyObject *function_object, PyObject *positional_args) {
@@ -100,7 +100,8 @@ NUITKA_MAY_BE_UNUSED static PyObject *CALL_FUNCTION_WITH_POSARGS(PyObject *funct
 }
 
 // Method call variants with positional arguments tuple.
-extern PyObject *CALL_METHOD_WITH_POSARGS(PyObject *source, PyObject *attr_name, PyObject *positional_args);
+extern PyObject *CALL_METHOD_WITH_POSARGS(PyThreadState *tstate, PyObject *source, PyObject *attr_name,
+                                          PyObject *positional_args);
 
 // TODO: Specialize in template too.
 NUITKA_MAY_BE_UNUSED static PyObject *CALL_FUNCTION_WITH_KEYARGS(PyObject *function_object, PyObject *named_args) {
@@ -111,7 +112,7 @@ NUITKA_MAY_BE_UNUSED static PyObject *CALL_FUNCTION_WITH_KEYARGS(PyObject *funct
 extern PyObject *CALL_BUILTIN_KW_ARGS(PyObject *callable, PyObject **args, char const **arg_names, int max_args);
 
 // For abstract class instantiation error message, during call.
-extern void formatCannotInstantiateAbstractClass(PyTypeObject *type);
+extern void formatCannotInstantiateAbstractClass(PyThreadState *tstate, PyTypeObject *type);
 
 #include "nuitka/helper/calling_generated.h"
 

@@ -80,18 +80,19 @@ static struct Nuitka_MetaPathBasedLoaderEntry meta_path_loader_entries[] = {
     {NULL, NULL, 0, 0, 0}
 };
 
-static void _loadBytesCodesBlob(void) {
+static void _loadBytesCodesBlob() {
     static bool init_done = false;
 
     if (init_done == false) {
-        loadConstantsBlob((PyObject **)bytecode_data, ".bytecode");
+        // Note needed for mere data.
+        loadConstantsBlob(NULL, (PyObject **)bytecode_data, ".bytecode");
 
         init_done = true;
     }
 }
 
 
-void setupMetaPathBasedLoader(void) {
+void setupMetaPathBasedLoader(PyThreadState *tstate) {
     static bool init_done = false;
     if (init_done == false) {
         _loadBytesCodesBlob();

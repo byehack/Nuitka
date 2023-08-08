@@ -90,7 +90,9 @@ static PyObject *Nuitka_ResourceReader_open_resource(struct Nuitka_ResourceReade
 
     PyObject *filename = _Nuitka_ResourceReader_resource_path(reader, resource);
 
-    return BUILTIN_OPEN_BINARY_READ_SIMPLE(filename);
+    PyThreadState *tstate = PyThreadState_GET();
+
+    return BUILTIN_OPEN_BINARY_READ_SIMPLE(tstate, filename);
 }
 
 #if PYTHON_VERSION >= 0x390
@@ -100,7 +102,8 @@ static PyObject *Nuitka_ResourceReader_open_resource(struct Nuitka_ResourceReade
 static PyObject *Nuitka_ResourceReader_files(struct Nuitka_ResourceReaderObject *reader, PyObject *args,
                                              PyObject *kwds) {
 
-    return Nuitka_ResourceReaderFiles_New(reader->m_loader_entry, const_str_empty);
+    PyThreadState *tstate = PyThreadState_GET();
+    return Nuitka_ResourceReaderFiles_New(tstate, reader->m_loader_entry, const_str_empty);
 }
 #endif
 

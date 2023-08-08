@@ -50,7 +50,7 @@ def _getStoreLocalsCode(locals_name, variable_traces, is_dict, emit, context):
 
                 getErrorExitBoolCode(
                     condition="""\
-%s == NULL && !EXCEPTION_MATCH_BOOL_SINGLE(GET_ERROR_OCCURRED(), PyExc_KeyError)"""
+%s == NULL && !EXCEPTION_MATCH_BOOL_SINGLE(tstate, GET_ERROR_OCCURRED(), PyExc_KeyError)"""
                     % value_name,
                     emit=emit,
                     context=context,
@@ -221,7 +221,7 @@ def getBuiltinEvalCode(
     )
 
     emit(
-        "%s = EVAL_CODE(%s, %s, %s);"
+        "%s = EVAL_CODE(tstate, %s, %s, %s);"
         % (to_name, compiled_name, globals_name, locals_name)
     )
 
@@ -285,7 +285,7 @@ def generateExecCode(statement, emit, context):
         res_name = context.getBoolResName()
 
         emit(
-            "%s = EXEC_FILE_ARG_HANDLING(&%s, &%s);"
+            "%s = EXEC_FILE_ARG_HANDLING(tstate, &%s, &%s);"
             % (res_name, source_name, filename_name)
         )
 
@@ -310,7 +310,7 @@ def generateExecCode(statement, emit, context):
         to_name = context.allocateTempName("exec_result")
 
         emit(
-            "%s = EVAL_CODE(%s, %s, %s);"
+            "%s = EVAL_CODE(tstate, %s, %s, %s);"
             % (to_name, compiled_name, globals_name, locals_name)
         )
 

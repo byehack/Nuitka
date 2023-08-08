@@ -471,6 +471,8 @@ static int Nuitka_Frame_tp_traverse(struct Nuitka_FrameObject *frame, visitproc 
 #if PYTHON_VERSION >= 0x340
 
 static PyObject *Nuitka_Frame_clear(struct Nuitka_FrameObject *frame) {
+    PyThreadState *tstate = PyThreadState_GET();
+
     if (Nuitka_Frame_IsExecuting(frame)) {
         SET_CURRENT_EXCEPTION_TYPE0_STR(PyExc_RuntimeError, "cannot clear an executing frame");
 
@@ -504,14 +506,14 @@ static PyObject *Nuitka_Frame_clear(struct Nuitka_FrameObject *frame) {
             struct Nuitka_GeneratorObject *generator = (struct Nuitka_GeneratorObject *)f_gen;
             Nuitka_SetFrameGenerator(frame, NULL);
 
-            close_exception = !_Nuitka_Generator_close(generator);
+            close_exception = !_Nuitka_Generator_close(tstate, generator);
         }
 #if PYTHON_VERSION >= 0x350
         else if (Nuitka_Coroutine_Check(f_gen)) {
             struct Nuitka_CoroutineObject *coroutine = (struct Nuitka_CoroutineObject *)f_gen;
             Nuitka_SetFrameGenerator(frame, NULL);
 
-            close_exception = !_Nuitka_Coroutine_close(coroutine);
+            close_exception = !_Nuitka_Coroutine_close(tstate, coroutine);
         }
 #endif
 #if PYTHON_VERSION >= 0x360
@@ -519,7 +521,7 @@ static PyObject *Nuitka_Frame_clear(struct Nuitka_FrameObject *frame) {
             struct Nuitka_AsyncgenObject *asyncgen = (struct Nuitka_AsyncgenObject *)f_gen;
             Nuitka_SetFrameGenerator(frame, NULL);
 
-            close_exception = !_Nuitka_Asyncgen_close(asyncgen);
+            close_exception = !_Nuitka_Asyncgen_close(tstate, asyncgen);
         }
 #endif
         else {
@@ -791,7 +793,10 @@ PyCodeObject *makeCodeObject(PyObject *filename, int line, int flags, PyObject *
     // it. Really serious non-immutable shit. We have triggered that changes
     // behind our back in the past.
 #ifndef __NUITKA_NO_ASSERT__
-    Py_hash_t hash = DEEP_HASH(argnames);
+    // TODO: Reactivate once code object creation becomes un-streaming driven
+    // and we can pass the extra args with no worries.
+
+    // Py_hash_t hash = DEEP_HASH(argnames);
 #endif
 
 #if PYTHON_VERSION < 0x300
@@ -855,7 +860,7 @@ PyCodeObject *makeCodeObject(PyObject *filename, int line, int flags, PyObject *
 #endif
     );
 
-    assert(DEEP_HASH(argnames) == hash);
+    // assert(DEEP_HASH(tstate, argnames) == hash);
 
     if (result == NULL) {
         PyErr_PrintEx(0);

@@ -53,17 +53,17 @@ PyObject *IMPORT_MODULE_KW(PyObject *module_name, PyObject *globals, PyObject *l
     return import_result;
 }
 
-PyObject *IMPORT_MODULE1(PyObject *module_name) {
+PyObject *IMPORT_MODULE1(PyThreadState *tstate, PyObject *module_name) {
     CHECK_OBJECT(module_name);
 
     NUITKA_ASSIGN_BUILTIN(__import__);
 
-    PyObject *import_result = CALL_FUNCTION_WITH_SINGLE_ARG(NUITKA_ACCESS_BUILTIN(__import__), module_name);
+    PyObject *import_result = CALL_FUNCTION_WITH_SINGLE_ARG(tstate, NUITKA_ACCESS_BUILTIN(__import__), module_name);
 
     return import_result;
 }
 
-PyObject *IMPORT_MODULE2(PyObject *module_name, PyObject *globals) {
+PyObject *IMPORT_MODULE2(PyThreadState *tstate, PyObject *module_name, PyObject *globals) {
     CHECK_OBJECT(module_name);
     CHECK_OBJECT(globals);
 
@@ -71,12 +71,12 @@ PyObject *IMPORT_MODULE2(PyObject *module_name, PyObject *globals) {
 
     NUITKA_ASSIGN_BUILTIN(__import__);
 
-    PyObject *import_result = CALL_FUNCTION_WITH_ARGS2(NUITKA_ACCESS_BUILTIN(__import__), pos_args);
+    PyObject *import_result = CALL_FUNCTION_WITH_ARGS2(tstate, NUITKA_ACCESS_BUILTIN(__import__), pos_args);
 
     return import_result;
 }
 
-PyObject *IMPORT_MODULE3(PyObject *module_name, PyObject *globals, PyObject *locals) {
+PyObject *IMPORT_MODULE3(PyThreadState *tstate, PyObject *module_name, PyObject *globals, PyObject *locals) {
     CHECK_OBJECT(module_name);
     CHECK_OBJECT(globals);
     CHECK_OBJECT(locals);
@@ -85,12 +85,13 @@ PyObject *IMPORT_MODULE3(PyObject *module_name, PyObject *globals, PyObject *loc
 
     NUITKA_ASSIGN_BUILTIN(__import__);
 
-    PyObject *import_result = CALL_FUNCTION_WITH_ARGS3(NUITKA_ACCESS_BUILTIN(__import__), pos_args);
+    PyObject *import_result = CALL_FUNCTION_WITH_ARGS3(tstate, NUITKA_ACCESS_BUILTIN(__import__), pos_args);
 
     return import_result;
 }
 
-PyObject *IMPORT_MODULE4(PyObject *module_name, PyObject *globals, PyObject *locals, PyObject *import_items) {
+PyObject *IMPORT_MODULE4(PyThreadState *tstate, PyObject *module_name, PyObject *globals, PyObject *locals,
+                         PyObject *import_items) {
     CHECK_OBJECT(module_name);
     CHECK_OBJECT(globals);
     CHECK_OBJECT(locals);
@@ -100,13 +101,13 @@ PyObject *IMPORT_MODULE4(PyObject *module_name, PyObject *globals, PyObject *loc
 
     NUITKA_ASSIGN_BUILTIN(__import__);
 
-    PyObject *import_result = CALL_FUNCTION_WITH_ARGS4(NUITKA_ACCESS_BUILTIN(__import__), pos_args);
+    PyObject *import_result = CALL_FUNCTION_WITH_ARGS4(tstate, NUITKA_ACCESS_BUILTIN(__import__), pos_args);
 
     return import_result;
 }
 
-PyObject *IMPORT_MODULE5(PyObject *module_name, PyObject *globals, PyObject *locals, PyObject *import_items,
-                         PyObject *level) {
+PyObject *IMPORT_MODULE5(PyThreadState *tstate, PyObject *module_name, PyObject *globals, PyObject *locals,
+                         PyObject *import_items, PyObject *level) {
     CHECK_OBJECT(module_name);
     CHECK_OBJECT(globals);
     CHECK_OBJECT(locals);
@@ -136,12 +137,12 @@ PyObject *IMPORT_MODULE5(PyObject *module_name, PyObject *globals, PyObject *loc
     }
 #endif
 
-    PyObject *import_result = CALL_FUNCTION_WITH_ARGS5(import_function, pos_args);
+    PyObject *import_result = CALL_FUNCTION_WITH_ARGS5(tstate, import_function, pos_args);
 
     return import_result;
 }
 
-bool IMPORT_MODULE_STAR(PyObject *target, bool is_module, PyObject *module) {
+bool IMPORT_MODULE_STAR(PyThreadState *tstate, PyObject *target, bool is_module, PyObject *module) {
     // Check parameters.
     CHECK_OBJECT(module);
     CHECK_OBJECT(target);
@@ -151,7 +152,7 @@ bool IMPORT_MODULE_STAR(PyObject *target, bool is_module, PyObject *module) {
 
     PyObject *all = PyObject_GetAttr(module, const_str_plain___all__);
     if (all != NULL) {
-        iter = MAKE_ITERATOR(all);
+        iter = MAKE_ITERATOR(tstate, all);
         Py_DECREF(all);
 
         if (unlikely(iter == NULL)) {
@@ -159,10 +160,10 @@ bool IMPORT_MODULE_STAR(PyObject *target, bool is_module, PyObject *module) {
         }
 
         all_case = true;
-    } else if (EXCEPTION_MATCH_BOOL_SINGLE(GET_ERROR_OCCURRED(), PyExc_AttributeError)) {
-        CLEAR_ERROR_OCCURRED();
+    } else if (EXCEPTION_MATCH_BOOL_SINGLE(tstate, GET_ERROR_OCCURRED_TSTATE(tstate), PyExc_AttributeError)) {
+        CLEAR_ERROR_OCCURRED_TSTATE(tstate);
 
-        iter = MAKE_ITERATOR(PyModule_GetDict(module));
+        iter = MAKE_ITERATOR(tstate, PyModule_GetDict(module));
         CHECK_OBJECT(iter);
 
         all_case = false;
@@ -193,7 +194,7 @@ bool IMPORT_MODULE_STAR(PyObject *target, bool is_module, PyObject *module) {
             }
         }
 
-        PyObject *value = LOOKUP_ATTRIBUTE(module, item);
+        PyObject *value = LOOKUP_ATTRIBUTE(tstate, module, item);
 
         // Might not exist, because of e.g. wrong "__all__" value.
         if (unlikely(value == NULL)) {
@@ -203,7 +204,7 @@ bool IMPORT_MODULE_STAR(PyObject *target, bool is_module, PyObject *module) {
 
         // TODO: Check if the reference is handled correctly
         if (is_module) {
-            SET_ATTRIBUTE(target, item, value);
+            SET_ATTRIBUTE(tstate, target, item, value);
         } else {
             SET_SUBSCRIPT(target, item, value);
         }
@@ -217,18 +218,18 @@ bool IMPORT_MODULE_STAR(PyObject *target, bool is_module, PyObject *module) {
     return !ERROR_OCCURRED();
 }
 
-PyObject *IMPORT_NAME_FROM_MODULE(PyObject *module, PyObject *import_name) {
+PyObject *IMPORT_NAME_FROM_MODULE(PyThreadState *tstate, PyObject *module, PyObject *import_name) {
     CHECK_OBJECT(module);
     CHECK_OBJECT(import_name);
 
     PyObject *result = PyObject_GetAttr(module, import_name);
 
     if (unlikely(result == NULL)) {
-        if (CHECK_AND_CLEAR_ATTRIBUTE_ERROR_OCCURRED()) {
+        if (CHECK_AND_CLEAR_ATTRIBUTE_ERROR_OCCURRED_TSTATE(tstate)) {
 #if PYTHON_VERSION >= 0x370
-            PyObject *filename = Nuitka_GetFilenameObject(module);
+            PyObject *filename = Nuitka_GetFilenameObject(tstate, module);
 
-            PyObject *name = LOOKUP_ATTRIBUTE(module, const_str_plain___name__);
+            PyObject *name = LOOKUP_ATTRIBUTE(tstate, module, const_str_plain___name__);
             if (name == NULL) {
                 name = PyUnicode_FromString("<unknown module name>");
             }
@@ -341,7 +342,8 @@ static PyObject *resolveParentModuleName(PyObject *module, PyObject *name, int l
         }
 
         // Detect package from __path__ presence.
-        if (DICT_HAS_ITEM(globals, const_str_plain___path__) == 1) {
+        // TODO: Pass tstate, for now we believe this cannot fail.
+        if (DICT_HAS_ITEM(NULL, globals, const_str_plain___path__) == 1) {
             Py_ssize_t dot = PyUnicode_FindChar(package, '.', 0, PyUnicode_GET_LENGTH(package), -1);
 
             if (unlikely(dot == -2)) {
@@ -399,19 +401,20 @@ static PyObject *resolveParentModuleName(PyObject *module, PyObject *name, int l
     return abs_name;
 }
 
-PyObject *IMPORT_NAME_OR_MODULE(PyObject *module, PyObject *globals, PyObject *import_name, PyObject *level) {
+PyObject *IMPORT_NAME_OR_MODULE(PyThreadState *tstate, PyObject *module, PyObject *globals, PyObject *import_name,
+                                PyObject *level) {
     CHECK_OBJECT(module);
     CHECK_OBJECT(import_name);
 
     PyObject *result = PyObject_GetAttr(module, import_name);
 
     if (unlikely(result == NULL)) {
-        if (EXCEPTION_MATCH_BOOL_SINGLE(GET_ERROR_OCCURRED(), PyExc_AttributeError)) {
-            CLEAR_ERROR_OCCURRED();
+        if (EXCEPTION_MATCH_BOOL_SINGLE(tstate, GET_ERROR_OCCURRED_TSTATE(tstate), PyExc_AttributeError)) {
+            CLEAR_ERROR_OCCURRED_TSTATE(tstate);
 
             long level_int = PyLong_AsLong(level);
 
-            if (unlikely(level_int == -1 && ERROR_OCCURRED())) {
+            if (unlikely(level_int == -1 && HAS_ERROR_OCCURRED(tstate))) {
                 return NULL;
             }
 
@@ -423,7 +426,7 @@ PyObject *IMPORT_NAME_OR_MODULE(PyObject *module, PyObject *globals, PyObject *i
             if (level_int > 0) {
                 PyObject *fromlist = MAKE_TUPLE1(import_name);
 
-                result = IMPORT_MODULE5(const_str_empty, globals, globals, fromlist, level);
+                result = IMPORT_MODULE5(tstate, const_str_empty, globals, globals, fromlist, level);
 
                 Py_DECREF(fromlist);
 
@@ -442,11 +445,11 @@ PyObject *IMPORT_NAME_OR_MODULE(PyObject *module, PyObject *globals, PyObject *i
                 PyObject *name = resolveParentModuleName(module, import_name, level_int);
 
                 if (name == NULL) {
-                    if (unlikely(ERROR_OCCURRED())) {
+                    if (unlikely(HAS_ERROR_OCCURRED(tstate))) {
                         return NULL;
                     }
                 } else {
-                    result = IMPORT_MODULE5(name, globals, globals, const_tuple_empty, level);
+                    result = IMPORT_MODULE5(tstate, name, globals, globals, const_tuple_empty, level);
 
                     if (result != NULL) {
                         Py_DECREF(result);
@@ -459,9 +462,9 @@ PyObject *IMPORT_NAME_OR_MODULE(PyObject *module, PyObject *globals, PyObject *i
             }
 
             if (result == NULL) {
-                CLEAR_ERROR_OCCURRED();
+                CLEAR_ERROR_OCCURRED_TSTATE(tstate);
 
-                result = IMPORT_NAME_FROM_MODULE(module, import_name);
+                result = IMPORT_NAME_FROM_MODULE(tstate, module, import_name);
             }
         }
     }

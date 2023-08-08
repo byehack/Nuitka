@@ -42,10 +42,10 @@ PyObject *STRING_FROM_CHAR(unsigned char c) {
    faster on Python2. For Python3 no such table is reasonable.
 */
 
-PyObject *BUILTIN_CHR(PyObject *value) {
+PyObject *BUILTIN_CHR(PyThreadState *tstate, PyObject *value) {
     long x = PyInt_AsLong(value);
 
-    if (unlikely(x == -1 && ERROR_OCCURRED())) {
+    if (unlikely(x == -1 && HAS_ERROR_OCCURRED(tstate))) {
 #if PYTHON_VERSION < 0x300 && defined(_NUITKA_FULL_COMPAT)
         SET_CURRENT_EXCEPTION_TYPE0_STR(PyExc_TypeError, "an integer is required");
 #else

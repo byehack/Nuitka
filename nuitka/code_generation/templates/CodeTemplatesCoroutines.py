@@ -30,7 +30,7 @@ struct %(function_identifier)s_locals {
 };
 #endif
 
-static PyObject *%(function_identifier)s_context(struct Nuitka_CoroutineObject *coroutine, PyObject *yield_return_value) {
+static PyObject *%(function_identifier)s_context(PyThreadState *tstate, struct Nuitka_CoroutineObject *coroutine, PyObject *yield_return_value) {
     CHECK_OBJECT(coroutine);
     assert(Nuitka_Coroutine_Check((PyObject *)coroutine));
     CHECK_OBJECT_X(yield_return_value);

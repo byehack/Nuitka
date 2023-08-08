@@ -411,7 +411,7 @@ def _getVariableDelCode(
         context=context,
     )
 
-    if needs_check and not tolerant:
+    if to_name is not None:
         if variable.isModuleVariable():
             getNameReferenceErrorCode(
                 variable_name=variable.getName(),

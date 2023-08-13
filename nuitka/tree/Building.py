@@ -1173,7 +1173,7 @@ def buildMainModuleTree(filename, is_main, source_code):
     if is_main and Options.isStandaloneMode():
         module.setStandardLibraryModules(
             early_module_names=detectEarlyImports(),
-            stdlib_modules_names=detectStdlibAutoInclusionModules(),
+            stdlib_modules_names=(),
         )
 
     # Main modules do not get added to the import cache, but plugins get to see it.

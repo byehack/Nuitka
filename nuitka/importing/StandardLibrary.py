@@ -346,7 +346,7 @@ _stdlib_no_auto_inclusion_list = (
     "nntplib",
     "http",
     "xmlrpc",
-    "urllib",
+    # "urllib",
     "select",
     "wsgiref",
     "sunau",

@@ -223,7 +223,7 @@ print("\\n".join(sorted(
 
 
 def _detectEarlyImports():
-    imports = ("locale",)
+    imports = ("locale", "urllib")
 
     # For Python3 we patch inspect without knowing if it is used.
     if python_version >= 0x300:

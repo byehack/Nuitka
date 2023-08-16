@@ -231,7 +231,7 @@ print("\\n".join(sorted(
 
 
 def _detectEarlyImports():
-    imports = ("locale", "urllib")
+    imports = ("locale", "urllib", "ctypes.macholib")
 
     # For Python3 we patch inspect without knowing if it is used.
     if python_version >= 0x300:

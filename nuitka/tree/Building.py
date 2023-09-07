@@ -92,7 +92,6 @@ from nuitka.nodes.ConstantRefNodes import (
     ExpressionConstantNoneRef,
     makeConstantRefNode,
 )
-from nuitka.nodes.CoroutineNodes import ExpressionAsyncWait
 from nuitka.nodes.ExceptionNodes import (
     StatementRaiseException,
     StatementReraiseException,
@@ -128,7 +127,6 @@ from nuitka.nodes.VariableNameNodes import (
     ExpressionVariableNameRef,
     StatementAssignmentVariableName,
 )
-from nuitka.nodes.YieldNodes import ExpressionYieldFromWaitable
 from nuitka.optimizations.BytecodeDemotion import demoteSourceCodeToBytecode
 from nuitka.Options import shallWarnUnusualCode
 from nuitka.pgo.PGO import decideCompilationFromPGO
@@ -184,7 +182,6 @@ from .ReformulationImportStatements import (
 from .ReformulationLambdaExpressions import buildLambdaNode
 from .ReformulationMatchStatements import buildMatchNode
 from .ReformulationNamespacePackages import (
-    createImporterCacheAssignment,
     createNamespacePackage,
     createPathAssignment,
 )
@@ -195,11 +192,18 @@ from .ReformulationSequenceCreation import (
     buildTupleCreationNode,
 )
 from .ReformulationSubscriptExpressions import buildSubscriptNode
-from .ReformulationTryExceptStatements import buildTryExceptionNode
+from .ReformulationTryExceptStatements import (
+    buildTryExceptionNode,
+    buildTryStarExceptionNode,
+)
 from .ReformulationTryFinallyStatements import buildTryFinallyNode
 from .ReformulationWhileLoopStatements import buildWhileLoopNode
 from .ReformulationWithStatements import buildAsyncWithNode, buildWithNode
-from .ReformulationYieldExpressions import buildYieldFromNode, buildYieldNode
+from .ReformulationYieldExpressions import (
+    buildAwaitNode,
+    buildYieldFromNode,
+    buildYieldNode,
+)
 from .SourceHandling import (
     checkPythonVersionFromCode,
     getSourceCodeDiff,
@@ -307,6 +311,38 @@ def buildTryNode(provider, node, source_ref):
             statements=mergeStatements(
                 (
                     buildTryExceptionNode(
+                        provider=provider, node=node, source_ref=source_ref
+                    ),
+                ),
+                allow_none=True,
+            ),
+            allow_none=True,
+            source_ref=source_ref,
+        ),
+        node=node,
+        source_ref=source_ref,
+    )
+
+
+def buildTryStarNode(provider, node, source_ref):
+    # Note: This variant is used for Python3.11 or higher only, where an exception
+    # group is caught. Mixing groups and non-group catches is not allowed.
+
+    # Without handlers, this would not be used, but instead "Try" would be used,
+    # but assert against it.
+    assert node.handlers
+
+    if not node.finalbody:  # spell-checker: ignore finalbody
+        return buildTryStarExceptionNode(
+            provider=provider, node=node, source_ref=source_ref
+        )
+
+    return buildTryFinallyNode(
+        provider=provider,
+        build_tried=lambda: makeStatementsSequence(
+            statements=mergeStatements(
+                (
+                    buildTryStarExceptionNode(
                         provider=provider, node=node, source_ref=source_ref
                     ),
                 ),
@@ -627,16 +663,6 @@ def buildConditionalExpressionNode(provider, node, source_ref):
     )
 
 
-def buildAwaitNode(provider, node, source_ref):
-    return ExpressionYieldFromWaitable(
-        expression=ExpressionAsyncWait(
-            expression=buildNode(provider, node.value, source_ref),
-            source_ref=source_ref,
-        ),
-        source_ref=source_ref,
-    )
-
-
 def buildFormattedValueNode(provider, node, source_ref):
     value = buildNode(provider, node.value, source_ref)
 
@@ -713,6 +739,8 @@ setBuildingDispatchers(
         "TryFinally": buildTryFinallyNode2,
         "Try": buildTryNode,
         "Raise": buildRaiseNode,
+        # Python3.11 exception group catching
+        "TryStar": buildTryStarNode,
         "Import": buildImportModulesNode,
         "ImportFrom": buildImportFromNode,
         "Assert": buildAssertNode,
@@ -841,9 +869,6 @@ def buildParseTree(provider, ast_tree, source_ref, is_module, is_main):
         if provider.isCompiledPythonPackage():
             # This assigns "__path__" value.
             statements.append(createPathAssignment(provider, internal_source_ref))
-            statements.append(
-                createImporterCacheAssignment(provider, internal_source_ref)
-            )
 
         if python_version >= 0x340 and not is_main:
             statements += (
@@ -1145,18 +1170,24 @@ def createModuleTree(module, source_ref, ast_tree, is_main):
         )
 
 
-def buildMainModuleTree(filename, is_main, source_code):
+def buildMainModuleTree(filename, source_code):
     # Detect to be frozen modules if any, so we can consider to not follow
     # to them.
 
-    if is_main:
+    if Options.shallMakeModule():
+        module_name = Importing.getModuleNameAndKindFromFilename(filename)[0]
+
+        if module_name is None:
+            general.sysexit(
+                "Error, filename '%s' suffix does not appear to be Python module code."
+                % filename
+            )
+    else:
         # TODO: Doesn't work for deeply nested packages at all.
         if Options.hasPythonFlagPackageMode():
             module_name = ModuleName(os.path.basename(filename) + ".__main__")
         else:
             module_name = ModuleName("__main__")
-    else:
-        module_name = Importing.getModuleNameAndKindFromFilename(filename)[0]
 
     module = buildModule(
         module_name=module_name,
@@ -1164,13 +1195,13 @@ def buildMainModuleTree(filename, is_main, source_code):
         module_filename=filename,
         source_code=source_code,
         is_top=True,
-        is_main=is_main,
+        is_main=not Options.shallMakeModule(),
         module_kind="py",
         is_fake=source_code is not None,
         hide_syntax_error=False,
     )
 
-    if is_main and Options.isStandaloneMode():
+    if Options.isStandaloneMode():
         module.setStandardLibraryModules(
             early_module_names=detectEarlyImports(),
             stdlib_modules_names=(),

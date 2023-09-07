@@ -445,6 +445,29 @@
         - 'chromadb.telemetry.posthog'
         - 'chromadb.api.local'
         - 'chromadb.db.duckdb'
+        - 'chromadb.db.impl.sqlite'
+        - 'chromadb.api.segment'
+        - 'chromadb.api.fastapi'
+        - 'chromadb.segment.impl.manager.local'
+        - 'chromadb.segment.impl.metadata.sqlite'
+        - 'chromadb.migrations.embeddings_queue'
+        - 'chromadb.migrations.sysdb'
+        - 'chromadb.migrations.metadb'
+
+- module-name: 'chromadb.migrations.embeddings_queue'
+  data-files:
+    patterns:
+      - '*.sql'
+
+- module-name: 'chromadb.migrations.metadb'
+  data-files:
+    patterns:
+      - '*.sql'
+
+- module-name: 'chromadb.migrations.sysdb'
+  data-files:
+    patterns:
+      - '*.sql'
 
 - module-name: 'clr'
   dlls:
@@ -1128,16 +1151,11 @@
         '__version__ = version(__name__)': 'repr(version("importlib_metadata"))'
       when: 'standalone'
 
-- module-name: 'importlib_resources'
-  data-files:
-    patterns:
-      - 'version.txt'
-
 - module-name: 'importlib_resources._compat'
   anti-bloat:
-    - description: 'workaround file reader check'
+    - description: 'workaround for file reader not used'
       replacements_plain:
-        'path.exists()': 'True'
+        '_file_reader(self.spec)': '_native_reader(self.spec) or _file_reader(self.spec)'
 
 - module-name: 'ipcqueue'
   implicit-imports:
@@ -1872,6 +1890,21 @@
     dirs:
       - 'resources/schemas'
 
+- module-name: 'opencc'
+  data-files:
+    dirs:
+      - 'clib/share/opencc'
+    patterns:
+      - '*.json'
+      - '*.ocd2'
+
+  dlls:
+    - from_filenames:
+        relative_path: 'clib/bin'
+        prefixes:
+          - 'opencc'
+      when: 'win32'
+
 - module-name: 'opentele.exception'
   anti-bloat:
     - description: 'workaround compiled functions not updating locals'
@@ -2387,7 +2420,7 @@
     - description: 'avoid Qt dependency'
       no-auto-follow:
         'PIL.ImageQt': 'PIL will not be able to create Qt image objects'
-      when: 'not plugin("pyqt5") and not plugin("pyqt6") and not plugin("pyside2") and not plugin("pyside6")'
+      when: 'not plugin("pyqt5") and not plugin("pyqt6") and not plugin("pyside2") and not plugin("pyside6") and not plugin("no-qt")'
     - description: 'avoid Qt dependency'
       no-auto-follow:
         'PIL.ImageQt': 'ignore'
@@ -2562,6 +2595,23 @@
         - 'plotly.graph_objs.layout.*'
         - 'plotly.graph_objs.layout.*.*'
 
+- module-name: 'plumbum.cli.progress'
+  anti-bloat:
+    - description: 'remove IPython reference'
+      replacements_plain:
+        '__IPYTHON__': 'raise NameError'
+      no-auto-follow:
+        'IPython': 'ignore'
+        'ipywidgets': 'ignore'
+      when: 'not use_ipython'
+
+- module-name: 'plumbum.colorlib'
+  anti-bloat:
+    - description: 'remove IPython reference'
+      no-auto-follow:
+        'plumbum.colorlib._ipython_ext': 'ignore'
+      when: 'not use_ipython'
+
 - module-name: 'polars.lazyframe.frame'
   anti-bloat:
     - description: 'remove IPython reference'
@@ -2586,6 +2636,13 @@
       replacements_plain:
         'from IPython import get_ipython': 'raise ImportError'
       when: 'not use_ipython'
+
+- module-name: 'polyfactory.fields'
+  anti-bloat:
+    - description: 'remove pytest reference'
+      no-auto-follow:
+        'polyfactory.pytest_plugin': 'ignore'
+      when: 'not use_pytest'
 
 - module-name: 'psutil'
   anti-bloat:
@@ -2682,6 +2739,12 @@
   data-files:
     dirs:
       - '.'
+
+- module-name: 'pygame'
+  options:
+    checks:
+      - description: 'PyGame is a GUI framework'
+        console: 'recommend'
 
 - module-name: 'pygeos._geometry'
   implicit-imports:
@@ -2920,20 +2983,21 @@
   implicit-imports:
     - post-import-code:
         - |
-          def myconnect(self, func):
-              if hasattr(func, "im_func"):
-                  if hasattr(func.im_func, "__compiled__"):
-                      myconnect._protected = getattr(myconnect, "_protected", set())
-                      myconnect._protected.add(func)
+          def patched_connect(self, receiver, type=None):
+              type = type or QtCore.Qt.ConnectionType.AutoConnection
+              if hasattr(receiver, "im_func"):
+                  if hasattr(receiver.im_func, "__compiled__"):
+                      patched_connect._protected = getattr(patched_connect, "_protected", set())
+                      patched_connect._protected.add(receiver)
 
-                  if not func.im_func.__name__.startswith("_pyside2_workaround_"):
-                      func.im_func.__name__ = "_nuitka_" + func.im_func.__name__
+                  if not receiver.im_func.__name__.startswith("_pyside2_workaround_"):
+                      receiver.im_func.__name__ = "_nuitka_" + receiver.im_func.__name__
 
-              return orig_connect(self, func)
+              return orig_connect(self, receiver, type)
 
           from PySide2 import QtCore
           orig_connect = QtCore.SignalInstance.connect
-          QtCore.SignalInstance.connect = myconnect
+          QtCore.SignalInstance.connect = patched_connect
 
   options:
     checks:
@@ -2971,20 +3035,21 @@
         - 'PySide6.support.deprecated'
     - post-import-code:
         - |
-          def myconnect(self, func):
-              if hasattr(func, "im_func"):
-                  if hasattr(func.im_func, "__compiled__"):
-                      myconnect._protected = getattr(myconnect, "_protected", set())
-                      myconnect._protected.add(func)
+          def patched_connect(self, receiver, type=None):
+              type = type or QtCore.Qt.ConnectionType.AutoConnection
+              if hasattr(receiver, "im_func"):
+                  if hasattr(receiver.im_func, "__compiled__"):
+                      patched_connect._protected = getattr(patched_connect, "_protected", set())
+                      patched_connect._protected.add(receiver)
 
-                  if not func.im_func.__name__.startswith("_pyside6_workaround_"):
-                      func.im_func.__name__ = "_nuitka_" + func.im_func.__name__
+                  if not receiver.im_func.__name__.startswith("_pyside6_workaround_"):
+                      receiver.im_func.__name__ = "_nuitka_" + receiver.im_func.__name__
 
-              return orig_connect(self, func)
+              return orig_connect(self, receiver, type)
 
           from PySide6 import QtCore
           orig_connect = QtCore.SignalInstance.connect
-          QtCore.SignalInstance.connect = myconnect
+          QtCore.SignalInstance.connect = patched_connect
 
 - module-name: 'pysnmp.smi'
   data-files:
@@ -3005,11 +3070,11 @@
       when: 'not use_ipython'
 
 - module-name: 'pythonnet'
-  dlls:
-    - from_filenames:
-        relative_path: 'runtime'
-        prefixes:
-          - 'Python.Runtime'
+  # These is a dotnet assembly, not a platform DLL, esp. not on Linux, macOS,
+  # etc.
+  data-files:
+    patterns:
+      - 'runtime/Python.Runtime.dll'
 
 - module-name: 'pytorch_lightning'
   data-files:
@@ -3161,6 +3226,8 @@
         - '.Postfix_cpp'
         - '.Prefix_py'
         - '.Prefix_cpp'
+        - '.metrics_cpp'
+        - '.metrics_py'
 
 - module-name: 'rasterio._io'
   implicit-imports:
@@ -5359,6 +5426,7 @@
       - 'flax'
       - 'tensorflow'
       - 'tokenizers'
+      - 'sentencepiece'
 
 - module-name: 'transformers.integrations'
   anti-bloat:
@@ -5400,6 +5468,13 @@
     - description: 'workaround manual import issue'
       replacements_plain:
         'transformers_module = direct_transformers_import(Path(__file__).parent)': 'import transformers as transformers_module'
+
+- module-name: 'transformers.tools.agent_types'
+  anti-bloat:
+    - description: 'remove IPython reference'
+      no-auto-follow:
+        'IPython': 'ignore'
+      when: 'not use_ipython'
 
 - module-name: 'transformers.trainer'
   anti-bloat:
@@ -5445,6 +5520,10 @@
     - description: 'workaround for tensorflow checks preventing pytorch usage'
       replacements_plain:
         'importlib.util.find_spec("tensorflow") is not None': 'False'
+    - description: 'more clear missing metadata error message'
+      replacements_plain:
+        'package_exists = False': "sys.exit('''Nuitka: Need to use compile with '--include-package-data=%s'.''' % pkg_name)"
+      when: 'not deployment'
 
 - module-name: 'transformers.utils.versions'
   anti-bloat:

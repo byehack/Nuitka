@@ -48,7 +48,7 @@ from nuitka.Options import (
 from nuitka.plugins.Plugins import getActivePlugins
 from nuitka.PythonFlavors import getPythonFlavorName
 from nuitka.PythonVersions import getSystemPrefixPath, python_version_full_str
-from nuitka.Tracing import reports_logger
+from nuitka.Tracing import ReportingSystemExit, reports_logger
 from nuitka.utils.Distributions import getDistributionsFromModuleName
 from nuitka.utils.FileOperations import getReportPath, putTextFileContents
 from nuitka.utils.Jinja2 import getTemplate
@@ -67,6 +67,10 @@ def _getReportInputData(aborted):
 
     module_kinds = dict(
         (module.getFullName(), module.__class__.__name__) for module in getDoneModules()
+    )
+
+    module_sources = dict(
+        (module.getFullName(), module.source_ref) for module in getDoneModules()
     )
 
     module_inclusion_infos = dict(
@@ -179,6 +183,9 @@ def _addModulesToReport(root, report_input_data, diffable):
             kind=report_input_data["module_kinds"][module_name],
             usage=active_module_info.usage_tag,
             reason=active_module_info.reason,
+            source_path=_getCompilationReportPath(
+                report_input_data["module_sources"][module_name].getFilename()
+            ),
         )
 
         for plugin_name, influence, detail in report_input_data[
@@ -294,12 +301,22 @@ def writeCompilationReport(report_filename, report_input_data, diffable):
     """Write the compilation report in XML format."""
     # Many details, pylint: disable=too-many-branches,too-many-locals,too-many-statements
 
+    # When failing to write the crash report, we need to indicate that it was
+    # not done to the atexit handler, pylint: disable=global-statement
+    global _crash_report_filename
+
+    exit_message = None
     if not report_input_data["nuitka_aborted"]:
         completion = "yes"
     elif report_input_data["nuitka_exception"][0] is KeyboardInterrupt:
         completion = "interrupted"
     elif report_input_data["nuitka_exception"][0] is SystemExit:
-        completion = "error (%s)" % report_input_data["nuitka_exception"][1].code
+        completion = "error exit (%s)" % report_input_data["nuitka_exception"][1].code
+    elif report_input_data["nuitka_exception"][0] is ReportingSystemExit:
+        completion = (
+            "error exit message (%s)" % report_input_data["nuitka_exception"][1].code
+        )
+        exit_message = report_input_data["nuitka_exception"][1].exit_message
     else:
         completion = "exception"
 
@@ -309,6 +326,9 @@ def writeCompilationReport(report_filename, report_input_data, diffable):
         nuitka_commercial_version=report_input_data["nuitka_commercial_version"],
         completion=completion,
     )
+
+    if exit_message is not None:
+        root.attrib["exit_message"] = exit_message
 
     if completion == "exception":
         exception_xml_node = TreeXML.appendTreeElement(
@@ -475,6 +495,9 @@ def writeCompilationReport(report_filename, report_input_data, diffable):
             "Compilation report write to file '%s' failed due to: %s."
             % (report_filename, e)
         )
+
+        if _crash_report_filename == report_filename:
+            _crash_report_filename = None
     else:
         reports_logger.info(
             "Compilation report written to file '%s'." % report_filename
@@ -543,13 +566,14 @@ _crash_report_filename = "nuitka-crash-report.xml"
 
 
 def _informAboutCrashReport():
-    reports_logger.info(
-        """\
+    if _crash_report_filename is not None:
+        reports_logger.info(
+            """\
 Compilation crash report written to file '%s'. Please include it in \
 your bug report."""
-        % _crash_report_filename,
-        style="red",
-    )
+            % _crash_report_filename,
+            style="red",
+        )
 
 
 def writeCompilationReports(aborted):

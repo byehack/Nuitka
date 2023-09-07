@@ -63,6 +63,7 @@ def getModuleMetaPathLoaderEntryCode(module, bytecode_accessor):
     if (
         not Options.isStandaloneMode()
         and not Options.shallMakeModule()
+        and Options.getFileReferenceMode() == "original"
         and python_version >= 0x370
     ):
         # File system paths that will hopefully work, spell-checker: ignore getfilesystemencoding
@@ -135,7 +136,8 @@ def getMetaPathLoaderBodyCode(bytecode_accessor):
         if other_module.isCompiledPythonModule():
             metapath_module_decls.append(
                 """\
-extern PyObject *modulecode_%(module_identifier)s(PyObject *, struct Nuitka_MetaPathBasedLoaderEntry const *);"""
+extern PyObject *modulecode_%(module_identifier)s(\
+PyThreadState *tstate, PyObject *, struct Nuitka_MetaPathBasedLoaderEntry const *);"""
                 % {"module_identifier": other_module.getCodeName()}
             )
 
